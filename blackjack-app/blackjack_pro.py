@@ -9,8 +9,26 @@ import plotly.express as px
 st.set_page_config(
     page_title="21點算牌助手",
     page_icon="🃏",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
+
+# --- 行動裝置 CSS 樣式微調 ---
+st.markdown("""
+    <style>
+    .stButton>button {
+        padding: 0.25rem 0.4rem !important;
+        font-size: 0.85rem !important;
+        margin-bottom: 2px !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.25rem !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.75rem !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # ============================
 # 密碼驗證機制 ( Password Auth )
@@ -28,7 +46,7 @@ def check_password():
 
     password_input = st.text_input("密碼", type="password", key="password_input")
     
-    if st.button("登入", type="primary"):
+    if st.button("登入", type="primary", use_container_width=True):
         if password_input == CORRECT_PASSWORD:
             st.session_state["password_correct"] = True
             st.rerun()
@@ -77,7 +95,7 @@ st.sidebar.title("⚙️ 遊戲設定")
 decks = st.sidebar.slider("總牌組數 (Decks)", 1, 8, 6)
 unit = st.sidebar.number_input("基本下注單位 (元)", 100, 50000, 100, step=100)
 
-if st.sidebar.button("🔒 登出系統"):
+if st.sidebar.button("🔒 登出系統", use_container_width=True):
     st.session_state["password_correct"] = False
     st.rerun()
 
@@ -227,14 +245,14 @@ st.caption(f"Hi-Lo 算牌法 | 當前模式：{decks} 副牌（單面上限：{m
 
 # --- 儀表板區域 ---
 c1, c2, c3 = st.columns(3)
-c1.metric("流水數 (Running Count)", st.session_state.running_count)
-c2.metric("真數 (True Count)", f"{true_count:.2f}")
-c3.metric("剩餘牌組數", f"{remaining_decks:.2f}")
+c1.metric("流水數 RC", st.session_state.running_count)
+c2.metric("真數 TC", f"{true_count:.2f}")
+c3.metric("剩餘牌組", f"{remaining_decks:.2f}")
 
 c4, c5, c6 = st.columns(3)
-c4.metric("已出牌數", f"{st.session_state.cards_seen} / {total_cards}")
+c4.metric("已出牌數", f"{st.session_state.cards_seen}/{total_cards}")
 c5.metric("剩餘牌數", remaining_cards)
-c6.metric("牌堆切牌深度", f"{penetration:.1f}%")
+c6.metric("切牌深度", f"{penetration:.1f}%")
 
 st.divider()
 
@@ -258,16 +276,16 @@ if remaining_decks <= 1.5:
 
 st.divider()
 
-# --- 快捷大局算牌區 ---
+# --- 快捷大局算牌區 (手機 4 欄配置) ---
 st.subheader("🃏 快速點擊記錄已出現牌 (大局記牌)")
 
-cols = st.columns(5)
+cols = st.columns(4)
 for i, card in enumerate(CARD_ORDER):
     seen_count = card_counts[card]
     is_disabled = seen_count >= max_per_card
-    label = f"{card}\n({seen_count}/{max_per_card})"
+    label = f"{card} ({seen_count})"
     
-    with cols[i % 5]:
+    with cols[i % 4]:
         if st.button(label, key=f"btn_{card}", use_container_width=True, disabled=is_disabled):
             st.session_state.running_count += CARD_VALUES[card]
             st.session_state.cards_seen += 1
@@ -303,9 +321,12 @@ with col_u2:
 
 st.divider()
 
-# --- 歷史 True Count 圖表 ---
+# --- 歷史 True Count 圖表 (每 30 張牌繪製一次) ---
 st.subheader("📈 真數 (True Count) 歷史走勢圖")
-if len(st.session_state.tc_history) > 1:
+seen_count = st.session_state.cards_seen
+
+if seen_count >= 30 and seen_count % 30 == 0:
+    st.caption(f"📊 已達 {seen_count} 張牌，自動繪製走勢圖：")
     df_tc = pd.DataFrame({
         "出牌張數": list(range(len(st.session_state.tc_history))),
         "真數 (True Count)": st.session_state.tc_history
@@ -319,48 +340,66 @@ if len(st.session_state.tc_history) > 1:
     )
     fig.add_hline(y=2.0, line_dash="dash", line_color="green", annotation_text="優勢區間 (TC≥2)")
     fig.add_hline(y=0.0, line_dash="dot", line_color="gray")
+    fig.update_layout(margin=dict(l=10, r=10, t=20, b=20), height=250)
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.caption("點擊上方卡牌按鈕後即可呈現真數趨勢圖表。")
+    next_checkpoint = ((seen_count // 30) + 1) * 30
+    cards_left = next_checkpoint - seen_count
+    st.info(f"💡 目前已出 {seen_count} 張牌。為保持操作順暢，圖表將於第 **{next_checkpoint}** 張牌時自動更新（還差 {cards_left} 張）。")
+    
+    if st.button("👁️ 強制點擊繪製當前圖表", use_container_width=True):
+        if len(st.session_state.tc_history) > 1:
+            df_tc = pd.DataFrame({
+                "出牌張數": list(range(len(st.session_state.tc_history))),
+                "真數 (True Count)": st.session_state.tc_history
+            })
+            fig = px.line(
+                df_tc, 
+                x="出牌張數", 
+                y="真數 (True Count)", 
+                title="牌局真數變動趨勢", 
+                markers=True
+            )
+            fig.add_hline(y=2.0, line_dash="dash", line_color="green", annotation_text="優勢區間 (TC≥2)")
+            fig.add_hline(y=0.0, line_dash="dot", line_color="gray")
+            fig.update_layout(margin=dict(l=10, r=10, t=20, b=20), height=250)
+            st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
 # --- 當前手牌策略分析區 ---
 st.subheader("🎰 當前手牌策略決策區")
 
-d_col, p_col = st.columns([1, 2])
+dealer_options = ["未輸入"] + CARD_ORDER
+current_dealer = st.session_state.dealer_card
+default_dealer_index = dealer_options.index(current_dealer) if current_dealer in dealer_options else 0
 
-with d_col:
-    dealer_options = ["未輸入"] + CARD_ORDER
-    current_dealer = st.session_state.dealer_card
-    default_dealer_index = dealer_options.index(current_dealer) if current_dealer in dealer_options else 0
+dealer = st.selectbox(
+    "莊家明牌 (Upcard)",
+    options=dealer_options,
+    index=default_dealer_index
+)
+st.session_state.dealer_card = dealer
 
-    dealer = st.selectbox(
-        "莊家明牌 (Upcard)",
-        options=dealer_options,
-        index=default_dealer_index
-    )
-    st.session_state.dealer_card = dealer
+st.write("**玩家手牌 (點擊按鈕快速加入)**")
 
-with p_col:
-    st.write("**玩家手牌 (點擊按鈕快速加入)**")
-    
-    if st.session_state.player_cards:
-        cards_display = " ".join([f"`[{c}]`" for c in st.session_state.player_cards])
-        st.markdown(f"目前組合：{cards_display}")
-    else:
-        st.caption("尚未選擇手牌（請點擊下方按鈕）")
+if st.session_state.player_cards:
+    cards_display = " ".join([f"`[{c}]`" for c in st.session_state.player_cards])
+    st.markdown(f"目前組合：{cards_display}")
+else:
+    st.caption("尚未選擇手牌（請點擊下方按鈕）")
 
-    p_btn_cols = st.columns(7)
-    for i, card in enumerate(CARD_ORDER):
-        with p_btn_cols[i % 7]:
-            if st.button(f"+{card}", key=f"p_add_{card}", use_container_width=True):
-                st.session_state.player_cards.append(card)
-                st.rerun()
+# 手機 5 欄配置
+p_btn_cols = st.columns(5)
+for i, card in enumerate(CARD_ORDER):
+    with p_btn_cols[i % 5]:
+        if st.button(f"+{card}", key=f"p_add_{card}", use_container_width=True):
+            st.session_state.player_cards.append(card)
+            st.rerun()
 
-    if st.button("🗑️ 清空玩家手牌", key="clear_p_cards", use_container_width=True):
-        st.session_state.player_cards = []
-        st.rerun()
+if st.button("🗑️ 清空玩家手牌", key="clear_p_cards", use_container_width=True):
+    st.session_state.player_cards = []
+    st.rerun()
 
 # --- 策略分析結果輸出 ---
 strategy = get_blackjack_strategy(
