@@ -3,26 +3,26 @@ import pandas as pd
 import plotly.express as px
 
 # ======================================
-# 21點算牌助手 (含密碼保護與圖表分析版)
+# 21點算牌助手 (左右雙欄版)
 # ======================================
 
 st.set_page_config(
     page_title="21點算牌助手",
     page_icon="🃏",
-    layout="centered",
+    layout="wide",  # 切換為寬螢幕以容納左右雙欄
     initial_sidebar_state="collapsed"
 )
 
-# --- 行動裝置 CSS 樣式微調 ---
+# --- 行動裝置與 UI 樣式微調 ---
 st.markdown("""
     <style>
     .stButton>button {
-        padding: 0.25rem 0.4rem !important;
+        padding: 0.25rem 0.3rem !important;
         font-size: 0.85rem !important;
         margin-bottom: 2px !important;
     }
     [data-testid="stMetricValue"] {
-        font-size: 1.25rem !important;
+        font-size: 1.15rem !important;
     }
     [data-testid="stMetricLabel"] {
         font-size: 0.75rem !important;
@@ -37,21 +37,18 @@ st.markdown("""
 CORRECT_PASSWORD = "940318"
 
 def check_password():
-    """回傳 True 代表密碼正確，驗證失敗則顯示輸入框並停止執行"""
     if st.session_state.get("password_correct", False):
         return True
 
     st.title("🔒 系統驗證")
-    st.subheader("請輸入密碼以存取 21 點算牌助手")
-
-    password_input = st.text_input("密碼", type="password", key="password_input")
+    password_input = st.text_input("請輸入密碼", type="password", key="password_input")
     
     if st.button("登入", type="primary", use_container_width=True):
         if password_input == CORRECT_PASSWORD:
             st.session_state["password_correct"] = True
             st.rerun()
         else:
-            st.error("❌ 密碼錯誤，請重新輸入！")
+            st.error("❌ 密碼錯誤！")
 
     return False
 
@@ -59,7 +56,7 @@ if not check_password():
     st.stop()
 
 # ============================
-# 靜態常數定義
+# 靜態常數定義與 Session 初始化
 # ============================
 
 CARD_VALUES = {
@@ -70,15 +67,11 @@ CARD_VALUES = {
 CARD_ORDER = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 SINGLE_CARD_PER_DECK = 4
 
-# ============================
-# Session 狀態初始化
-# ============================
-
 default_state = {
     "running_count": 0,
     "cards_seen": 0,
     "history": [],
-    "tc_history": [0.0],  # 記錄 True Count 歷史變動
+    "tc_history": [0.0],
     "player_cards": [],
     "dealer_card": "未輸入",
 }
@@ -114,9 +107,8 @@ advantage = -0.5 + (true_count * 0.5)
 # ============================
 
 def betting_system(tc):
-    """計算建議下注倍數與狀態"""
     if tc < 1:
-        return 1, "🔴 最小下注 (保守平注)"
+        return 1, "🔴 最小下注"
     elif tc < 2:
         return 2, "🙂 小幅加注"
     elif tc < 3:
@@ -128,9 +120,7 @@ def betting_system(tc):
     else:
         return 12, "🔥🔥 最大注碼"
 
-
 def calculate_hand_value(cards):
-    """計算玩家手牌點數與是否為 Soft 手牌"""
     if not cards:
         return 0, False
     value, aces = 0, 0
@@ -147,11 +137,9 @@ def calculate_hand_value(cards):
         aces -= 1
     return value, (aces > 0)
 
-
 def get_blackjack_strategy(player_cards, dealer_card, tc):
-    """基本策略 + Surrender + 完整 Soft Double + Illustrious 18"""
     if not player_cards or dealer_card == "未輸入":
-        return "ℹ️ 請先選擇『莊家明牌』與『玩家手牌』"
+        return "ℹ️ 請選擇『莊家明牌』與『玩家手牌』"
 
     value, soft = calculate_hand_value(player_cards)
     dealer_val = 10 if dealer_card in ["10", "J", "Q", "K"] else (11 if dealer_card == "A" else int(dealer_card))
@@ -160,28 +148,25 @@ def get_blackjack_strategy(player_cards, dealer_card, tc):
     if value > 21:
         return "💥 爆牌 (Bust)"
     if value == 21 and is_initial_two:
-        return "🎉 21點 (Blackjack) → 🛑 停牌 (Stand)"
+        return "🎉 21點 → 🛑 停牌"
 
-    # --- 1. 投降策略 (Surrender) ---
     if is_initial_two:
         if value == 16:
             if dealer_val in [9, 10, 11]:
                 return "🏳️ 投降 (Surrender)"
             if dealer_val == 8 and tc >= 4:
-                return "🏳️ 投降 (Surrender) 【偏離：TC ≥ 4】"
+                return "🏳️ 投降 【TC ≥ 4】"
         elif value == 15:
             if dealer_val == 10:
-                return "🏳️ 投降 (Surrender)" if tc >= 0 else "👉 要牌 (Hit)"
+                return "🏳️ 投降" if tc >= 0 else "👉 要牌"
             if dealer_val in [9, 11] and tc >= 2:
-                return "🏳️ 投降 (Surrender) 【偏離：TC ≥ 2】"
+                return "🏳️ 投降 【TC ≥ 2】"
 
-    # --- 2. Illustrious 18 停牌偏離 ---
     if value == 16 and dealer_val == 10 and tc >= 0:
-        return "🛑 停牌 (Stand) 【偏離：TC ≥ 0 改停牌】"
+        return "🛑 停牌 【TC ≥ 0 改停】"
     if value == 15 and dealer_val == 10 and tc >= 4:
-        return "🛑 停牌 (Stand) 【偏離：TC ≥ 4 改停牌】"
+        return "🛑 停牌 【TC ≥ 4 改停】"
 
-    # --- 3. 對子分牌 (Split) ---
     if is_initial_two and player_cards[0] == player_cards[1]:
         pair = player_cards[0]
         if pair in ["A", "8"]:
@@ -189,212 +174,175 @@ def get_blackjack_strategy(player_cards, dealer_card, tc):
         if pair in ["10", "J", "Q", "K"]:
             return "🛑 停牌 (Stand)"
         if pair == "5":
-            return "🔥 加倍 (Double)" if dealer_val <= 9 else "👉 要牌 (Hit)"
+            return "🔥 加倍 (Double)" if dealer_val <= 9 else "👉 要牌"
         if pair == "9":
-            return "✂️ 分牌 (Split)" if dealer_val in [2, 3, 4, 5, 6, 8, 9] else "🛑 停牌 (Stand)"
+            return "✂️ 分牌" if dealer_val in [2, 3, 4, 5, 6, 8, 9] else "🛑 停牌"
         if pair in ["2", "3", "7"] and dealer_val <= 7:
-            return "✂️ 分牌 (Split)"
+            return "✂️ 分牌"
         if pair == "6" and dealer_val <= 6:
-            return "✂️ 分牌 (Split)"
+            return "✂️ 分牌"
         if pair == "4" and dealer_val in [5, 6]:
-            return "✂️ 分牌 (Split)"
+            return "✂️ 分牌"
 
-    # --- 4. 軟牌策略 (Soft Hand, 含完整 Soft Double) ---
     if soft:
         if value >= 19:
             if value == 19 and is_initial_two and dealer_val == 6 and tc >= 1:
-                return "🔥 加倍 (Double) 【偏離：Soft 19 vs 6】"
-            return "🛑 停牌 (Stand)"
-        
+                return "🔥 加倍 【Soft 19 vs 6】"
+            return "🛑 停牌"
         if value == 18:
             if is_initial_two and dealer_val in [2, 3, 4, 5, 6]:
-                return "🔥 加倍 (Double)"
-            return "🛑 停牌 (Stand)" if dealer_val in [7, 8] else "👉 要牌 (Hit)"
-            
+                return "🔥 加倍"
+            return "🛑 停牌" if dealer_val in [7, 8] else "👉 要牌"
         if value == 17 and is_initial_two and dealer_val in [3, 4, 5, 6]:
-            return "🔥 加倍 (Double)"
+            return "🔥 加倍"
         if value in [15, 16] and is_initial_two and dealer_val in [4, 5, 6]:
-            return "🔥 加倍 (Double)"
+            return "🔥 加倍"
         if value in [13, 14] and is_initial_two and dealer_val in [5, 6]:
-            return "🔥 加倍 (Double)"
-            
-        return "👉 要牌 (Hit)"
+            return "🔥 加倍"
+        return "👉 要牌"
 
-    # --- 5. 硬牌策略 (Hard Hand) ---
     if value >= 17:
-        return "🛑 停牌 (Stand)"
+        return "🛑 停牌"
     if value >= 13:
-        return "🛑 停牌 (Stand)" if dealer_val <= 6 else "👉 要牌 (Hit)"
+        return "🛑 停牌" if dealer_val <= 6 else "👉 要牌"
     if value == 12:
-        return "🛑 停牌 (Stand)" if dealer_val in [4, 5, 6] else "👉 要牌 (Hit)"
+        return "🛑 停牌" if dealer_val in [4, 5, 6] else "👉 要牌"
     if value == 11:
-        return "🔥 加倍 (Double)"
+        return "🔥 加倍"
     if value == 10:
-        return "🔥 加倍 (Double)" if dealer_val <= 9 else "👉 要牌 (Hit)"
+        return "🔥 加倍" if dealer_val <= 9 else "👉 要牌"
     if value == 9:
-        return "🔥 加倍 (Double)" if dealer_val in [3, 4, 5, 6] else "👉 要牌 (Hit)"
+        return "🔥 加倍" if dealer_val in [3, 4, 5, 6] else "👉 要牌"
 
-    return "👉 要牌 (Hit)"
+    return "👉 要牌"
 
 # ============================
-# 頁面 UI 渲染
+# 頁面主體 (左右雙欄佈局)
 # ============================
 
 st.title("🃏 21點算牌助手")
-st.caption(f"Hi-Lo 算牌法 | 當前模式：{decks} 副牌（單面上限：{max_per_card} 張）")
 
-# --- 儀表板區域 ---
-c1, c2, c3 = st.columns(3)
-c1.metric("流水數 RC", st.session_state.running_count)
-c2.metric("真數 TC", f"{true_count:.2f}")
-c3.metric("剩餘牌組", f"{remaining_decks:.2f}")
+# 建立左右兩欄 (比例 1:1)
+left_col, right_col = st.columns([1, 1], gap="medium")
 
-c4, c5, c6 = st.columns(3)
-c4.metric("已出牌數", f"{st.session_state.cards_seen}/{total_cards}")
-c5.metric("剩餘牌數", remaining_cards)
-c6.metric("切牌深度", f"{penetration:.1f}%")
+# --------------------------------------------------
+# 左欄：大局記牌與下注建議
+# --------------------------------------------------
+with left_col:
+    st.subheader("📊 牌局現況與記牌")
 
-st.divider()
+    # 數據指標區 (3x2 佈局)
+    m1, m2, m3 = st.columns(3)
+    m1.metric("RC 流水數", st.session_state.running_count)
+    m2.metric("TC 真數", f"{true_count:.2f}")
+    m3.metric("剩餘牌組", f"{remaining_decks:.1f}副")
 
-# --- 下注建議區 ---
-bet_multi, bet_text = betting_system(true_count)
+    m4, m5, m6 = st.columns(3)
+    m4.metric("已出牌", f"{st.session_state.cards_seen}/{total_cards}")
+    m5.metric("剩餘張數", remaining_cards)
+    m6.metric("切牌深度", f"{penetration:.0f}%")
 
-st.success(f"""
-### 💰 下注策略建議
-* **狀態說明**：{bet_text}
-* **建議倍數**：{bet_multi} 倍
-* **建議金額**：${bet_multi * unit:,} 元
-""")
+    # 下注建議
+    bet_multi, bet_text = betting_system(true_count)
+    st.success(f"💰 **建議**：{bet_text} | **{bet_multi} 倍** (${bet_multi * unit:,} 元)")
 
-if true_count >= 2:
-    st.info("🟢 玩家優勢區間：數學期望值已轉正")
-else:
-    st.warning("🔴 莊家優勢區間：保持最小注碼")
+    st.write("**快速點擊記牌：**")
+    btn_cols = st.columns(4)
+    for i, card in enumerate(CARD_ORDER):
+        seen_count = card_counts[card]
+        is_disabled = seen_count >= max_per_card
+        label = f"{card} ({seen_count})"
+        
+        with btn_cols[i % 4]:
+            if st.button(label, key=f"btn_{card}", use_container_width=True, disabled=is_disabled):
+                st.session_state.running_count += CARD_VALUES[card]
+                st.session_state.cards_seen += 1
+                st.session_state.history.append(card)
+                
+                rem_decks = max(0.01, (total_cards - st.session_state.cards_seen) / 52)
+                new_tc = st.session_state.running_count / rem_decks
+                st.session_state.tc_history.append(round(new_tc, 2))
+                st.rerun()
 
-if remaining_decks <= 1.5:
-    st.error("⚠️ 警告：即將到達切牌線 (Cut Card)，準備重新洗牌")
+    # 功能控制鈕
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
+        if st.button("↩️ 撤銷上一張", use_container_width=True):
+            if st.session_state.history:
+                last = st.session_state.history.pop()
+                st.session_state.running_count -= CARD_VALUES[last]
+                st.session_state.cards_seen -= 1
+                if len(st.session_state.tc_history) > 1:
+                    st.session_state.tc_history.pop()
+                st.rerun()
 
-st.divider()
-
-# --- 快捷大局算牌區 (手機 4 欄配置) ---
-st.subheader("🃏 快速點擊記錄已出現牌 (大局記牌)")
-
-cols = st.columns(4)
-for i, card in enumerate(CARD_ORDER):
-    seen_count = card_counts[card]
-    is_disabled = seen_count >= max_per_card
-    label = f"{card} ({seen_count})"
-    
-    with cols[i % 4]:
-        if st.button(label, key=f"btn_{card}", use_container_width=True, disabled=is_disabled):
-            st.session_state.running_count += CARD_VALUES[card]
-            st.session_state.cards_seen += 1
-            st.session_state.history.append(card)
-            
-            # 計算並更新 TC 歷史紀錄
-            rem_decks = max(0.01, (total_cards - st.session_state.cards_seen) / 52)
-            new_tc = st.session_state.running_count / rem_decks
-            st.session_state.tc_history.append(round(new_tc, 2))
+    with col_u2:
+        if st.button("🔄 洗牌重置", type="primary", use_container_width=True):
+            st.session_state.running_count = 0
+            st.session_state.cards_seen = 0
+            st.session_state.history = []
+            st.session_state.tc_history = [0.0]
+            st.session_state.player_cards = []
+            st.session_state.dealer_card = "未輸入"
             st.rerun()
 
-# --- 重置與撤銷按鈕 ---
-col_u1, col_u2 = st.columns(2)
-with col_u1:
-    if st.button("↩️ 撤銷上一張牌", use_container_width=True):
-        if st.session_state.history:
-            last = st.session_state.history.pop()
-            st.session_state.running_count -= CARD_VALUES[last]
-            st.session_state.cards_seen -= 1
+# --------------------------------------------------
+# 右欄：手牌策略與歷史圖表
+# --------------------------------------------------
+with right_col:
+    st.subheader("🎰 手牌策略分析")
+
+    dealer_options = ["未輸入"] + CARD_ORDER
+    current_dealer = st.session_state.dealer_card
+    default_dealer_index = dealer_options.index(current_dealer) if current_dealer in dealer_options else 0
+
+    dealer = st.selectbox("莊家明牌 (Upcard)", options=dealer_options, index=default_dealer_index)
+    st.session_state.dealer_card = dealer
+
+    st.write("**加入玩家手牌：**")
+    p_btn_cols = st.columns(5)
+    for i, card in enumerate(CARD_ORDER):
+        with p_btn_cols[i % 5]:
+            if st.button(f"+{card}", key=f"p_add_{card}", use_container_width=True):
+                st.session_state.player_cards.append(card)
+                st.rerun()
+
+    if st.session_state.player_cards:
+        cards_display = " ".join([f"`[{c}]`" for c in st.session_state.player_cards])
+        st.markdown(f"目前組合：{cards_display}")
+        if st.button("🗑️ 清空手牌", key="clear_p_cards", use_container_width=True):
+            st.session_state.player_cards = []
+            st.rerun()
+
+    strategy = get_blackjack_strategy(
+        st.session_state.player_cards, 
+        st.session_state.dealer_card, 
+        true_count
+    )
+
+    st.info(f"🤖 **AI 建議：** {strategy}")
+    st.caption(f"預估玩家優勢 (EV): **{advantage:.2f}%**")
+
+    st.divider()
+
+    # 圖表與歷史紀錄 (以摺疊選單呈現，避免佔用太高畫面)
+    with st.expander("📈 檢視真數 (True Count) 走勢圖"):
+        if st.button("📊 繪製/更新走勢圖", use_container_width=True):
             if len(st.session_state.tc_history) > 1:
-                st.session_state.tc_history.pop()
-            st.rerun()
+                df_tc = pd.DataFrame({
+                    "出牌張數": list(range(len(st.session_state.tc_history))),
+                    "真數": st.session_state.tc_history
+                })
+                fig = px.line(df_tc, x="出牌張數", y="真數", markers=True)
+                fig.add_hline(y=2.0, line_dash="dash", line_color="green")
+                fig.add_hline(y=0.0, line_dash="dot", line_color="gray")
+                fig.update_layout(margin=dict(l=10, r=10, t=20, b=20), height=220)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("⚠️ 尚無足夠記牌紀錄")
 
-with col_u2:
-    if st.button("🔄 洗牌重置 (Reset)", type="primary", use_container_width=True):
-        st.session_state.running_count = 0
-        st.session_state.cards_seen = 0
-        st.session_state.history = []
-        st.session_state.tc_history = [0.0]
-        st.session_state.player_cards = []
-        st.session_state.dealer_card = "未輸入"
-        st.rerun()
-
-st.divider()
-
-# --- 歷史 True Count 圖表 (完全手動觸發) ---
-st.subheader("📈 真數 (True Count) 歷史走勢圖")
-
-if st.button("📊 點擊繪製 / 更新走勢圖", use_container_width=True, type="secondary"):
-    if len(st.session_state.tc_history) > 1:
-        df_tc = pd.DataFrame({
-            "出牌張數": list(range(len(st.session_state.tc_history))),
-            "真數 (True Count)": st.session_state.tc_history
-        })
-        fig = px.line(
-            df_tc, 
-            x="出牌張數", 
-            y="真數 (True Count)", 
-            title="牌局真數變動趨勢", 
-            markers=True
-        )
-        fig.add_hline(y=2.0, line_dash="dash", line_color="green", annotation_text="優勢區間 (TC≥2)")
-        fig.add_hline(y=0.0, line_dash="dot", line_color="gray")
-        fig.update_layout(margin=dict(l=10, r=10, t=20, b=20), height=250)
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("⚠️ 目前尚無足夠的記牌紀錄，請先點擊上方按鈕記錄出牌！")
-
-st.divider()
-
-# --- 當前手牌策略分析區 ---
-st.subheader("🎰 當前手牌策略決策區")
-
-dealer_options = ["未輸入"] + CARD_ORDER
-current_dealer = st.session_state.dealer_card
-default_dealer_index = dealer_options.index(current_dealer) if current_dealer in dealer_options else 0
-
-dealer = st.selectbox(
-    "莊家明牌 (Upcard)",
-    options=dealer_options,
-    index=default_dealer_index
-)
-st.session_state.dealer_card = dealer
-
-st.write("**玩家手牌 (點擊按鈕快速加入)**")
-
-if st.session_state.player_cards:
-    cards_display = " ".join([f"`[{c}]`" for c in st.session_state.player_cards])
-    st.markdown(f"目前組合：{cards_display}")
-else:
-    st.caption("尚未選擇手牌（請點擊下方按鈕）")
-
-# 手機 5 欄配置
-p_btn_cols = st.columns(5)
-for i, card in enumerate(CARD_ORDER):
-    with p_btn_cols[i % 5]:
-        if st.button(f"+{card}", key=f"p_add_{card}", use_container_width=True):
-            st.session_state.player_cards.append(card)
-            st.rerun()
-
-if st.button("🗑️ 清空玩家手牌", key="clear_p_cards", use_container_width=True):
-    st.session_state.player_cards = []
-    st.rerun()
-
-# --- 策略分析結果輸出 ---
-strategy = get_blackjack_strategy(
-    st.session_state.player_cards, 
-    st.session_state.dealer_card, 
-    true_count
-)
-
-st.info(f"🤖 **AI 建議動作：** {strategy}")
-st.metric("估算玩家優勢 (EV)", f"{advantage:.2f}%")
-
-st.divider()
-
-# --- 歷史紀錄 ---
-st.subheader("📜 最近 20 張出牌紀錄")
-if st.session_state.history:
-    st.write(" ".join([f"`{x}`" for x in st.session_state.history[-20:]]))
-else:
-    st.caption("尚無出牌紀錄")
+    with st.expander("📜 最近出牌紀錄"):
+        if st.session_state.history:
+            st.write(" ".join([f"`{x}`" for x in st.session_state.history[-20:]]))
+        else:
+            st.caption("尚無出牌紀錄")
