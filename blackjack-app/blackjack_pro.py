@@ -321,49 +321,28 @@ with col_u2:
 
 st.divider()
 
-# --- 歷史 True Count 圖表 (每 30 張牌繪製一次) ---
+# --- 歷史 True Count 圖表 (完全手動觸發) ---
 st.subheader("📈 真數 (True Count) 歷史走勢圖")
-seen_count = st.session_state.cards_seen
 
-if seen_count >= 30 and seen_count % 30 == 0:
-    st.caption(f"📊 已達 {seen_count} 張牌，自動繪製走勢圖：")
-    df_tc = pd.DataFrame({
-        "出牌張數": list(range(len(st.session_state.tc_history))),
-        "真數 (True Count)": st.session_state.tc_history
-    })
-    fig = px.line(
-        df_tc, 
-        x="出牌張數", 
-        y="真數 (True Count)", 
-        title="牌局真數變動趨勢", 
-        markers=True
-    )
-    fig.add_hline(y=2.0, line_dash="dash", line_color="green", annotation_text="優勢區間 (TC≥2)")
-    fig.add_hline(y=0.0, line_dash="dot", line_color="gray")
-    fig.update_layout(margin=dict(l=10, r=10, t=20, b=20), height=250)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    next_checkpoint = ((seen_count // 30) + 1) * 30
-    cards_left = next_checkpoint - seen_count
-    st.info(f"💡 目前已出 {seen_count} 張牌。為保持操作順暢，圖表將於第 **{next_checkpoint}** 張牌時自動更新（還差 {cards_left} 張）。")
-    
-    if st.button("👁️ 強制點擊繪製當前圖表", use_container_width=True):
-        if len(st.session_state.tc_history) > 1:
-            df_tc = pd.DataFrame({
-                "出牌張數": list(range(len(st.session_state.tc_history))),
-                "真數 (True Count)": st.session_state.tc_history
-            })
-            fig = px.line(
-                df_tc, 
-                x="出牌張數", 
-                y="真數 (True Count)", 
-                title="牌局真數變動趨勢", 
-                markers=True
-            )
-            fig.add_hline(y=2.0, line_dash="dash", line_color="green", annotation_text="優勢區間 (TC≥2)")
-            fig.add_hline(y=0.0, line_dash="dot", line_color="gray")
-            fig.update_layout(margin=dict(l=10, r=10, t=20, b=20), height=250)
-            st.plotly_chart(fig, use_container_width=True)
+if st.button("📊 點擊繪製 / 更新走勢圖", use_container_width=True, type="secondary"):
+    if len(st.session_state.tc_history) > 1:
+        df_tc = pd.DataFrame({
+            "出牌張數": list(range(len(st.session_state.tc_history))),
+            "真數 (True Count)": st.session_state.tc_history
+        })
+        fig = px.line(
+            df_tc, 
+            x="出牌張數", 
+            y="真數 (True Count)", 
+            title="牌局真數變動趨勢", 
+            markers=True
+        )
+        fig.add_hline(y=2.0, line_dash="dash", line_color="green", annotation_text="優勢區間 (TC≥2)")
+        fig.add_hline(y=0.0, line_dash="dot", line_color="gray")
+        fig.update_layout(margin=dict(l=10, r=10, t=20, b=20), height=250)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("⚠️ 目前尚無足夠的記牌紀錄，請先點擊上方按鈕記錄出牌！")
 
 st.divider()
 
