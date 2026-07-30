@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 # ======================================
-# 21點算牌助手 (南投小旋風專屬版)
+# 21點算牌助手 (南投小旋風專屬大字版)
 # ======================================
 
 st.set_page_config(
@@ -40,8 +40,8 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
-    # 🌪️ 加入南投小旋風專屬標籤
-    st.caption("🌪️ 南投小旋風專屬系統")
+    # 🌪️ 登入頁放大標示
+    st.markdown("## 🌪️ 南投小旋風專屬系統")
     st.title("🔒 系統驗證")
     password_input = st.text_input("請輸入密碼", type="password", key="password_input")
     
@@ -219,11 +219,11 @@ def get_blackjack_strategy(player_cards, dealer_card, tc):
     return "👉 要牌"
 
 # ============================
-# 頁面主體 (左右雙欄佈局)
+# 頁面主體 (大稱號 + 左右雙欄)
 # ============================
 
-# 頂部顯示稱呼
-st.caption("🌪️ 南投小旋風專屬系統")
+# 🌪️ 主頁面改用顯眼的醒目彩色大標題
+st.markdown("## 🌪️ <span style='color: #FF4B4B;'>南投小旋風</span> 專屬系統", unsafe_allow_html=True)
 st.title("🃏 21點算牌助手")
 
 # 建立左右兩欄 (比例 1:1)
