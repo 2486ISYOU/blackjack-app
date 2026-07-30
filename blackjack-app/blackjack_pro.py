@@ -3,13 +3,13 @@ import pandas as pd
 import plotly.express as px
 
 # ======================================
-# 21點算牌助手 (左右雙欄版)
+# 21點算牌助手 (南投小旋風專屬版)
 # ======================================
 
 st.set_page_config(
-    page_title="21點算牌助手",
+    page_title="21點算牌助手 - 南投小旋風專屬",
     page_icon="🃏",
-    layout="wide",  # 切換為寬螢幕以容納左右雙欄
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
@@ -40,6 +40,8 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
+    # 🌪️ 加入南投小旋風專屬標籤
+    st.caption("🌪️ 南投小旋風專屬系統")
     st.title("🔒 系統驗證")
     password_input = st.text_input("請輸入密碼", type="password", key="password_input")
     
@@ -220,6 +222,8 @@ def get_blackjack_strategy(player_cards, dealer_card, tc):
 # 頁面主體 (左右雙欄佈局)
 # ============================
 
+# 頂部顯示稱呼
+st.caption("🌪️ 南投小旋風專屬系統")
 st.title("🃏 21點算牌助手")
 
 # 建立左右兩欄 (比例 1:1)
@@ -325,7 +329,7 @@ with right_col:
 
     st.divider()
 
-    # 圖表與歷史紀錄 (以摺疊選單呈現，避免佔用太高畫面)
+    # 圖表與歷史紀錄 (摺疊呈現)
     with st.expander("📈 檢視真數 (True Count) 走勢圖"):
         if st.button("📊 繪製/更新走勢圖", use_container_width=True):
             if len(st.session_state.tc_history) > 1:
